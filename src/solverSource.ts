@@ -104,6 +104,55 @@ export function resolveExplicitSolverPath(
     return undefined;
 }
 
+/**
+ * The remote authority (e.g. "ssh-remote+host", "wsl+Ubuntu") of the current
+ * session, taken from a workspace folder URI — the API exposes no direct
+ * "full authority" property, only vscode.env.remoteName.
+ */
+function currentRemoteAuthority(): string | undefined {
+    for (const folder of vscode.workspace.workspaceFolders ?? []) {
+        if (folder.uri.scheme === 'vscode-remote') {
+            return folder.uri.authority;
+        }
+    }
+    return undefined;
+}
+
+/**
+ * Build a URI for the folder that stays on the machine the extension runs
+ * on. Under a remote session (SSH, WSL, dev container) a plain file: URI
+ * would make the new window open a *local* folder — the vscode-remote
+ * scheme with the current authority keeps it on the remote host.
+ */
+export function folderUriForCurrentHost(
+    fsPath: string,
+    remoteAuthority: string | undefined = currentRemoteAuthority()
+): vscode.Uri {
+    if (remoteAuthority) {
+        return vscode.Uri.from({
+            scheme: 'vscode-remote',
+            authority: remoteAuthority,
+            path: fsPath,
+        });
+    }
+    return vscode.Uri.file(fsPath);
+}
+
+/**
+ * Open the solver's directory in a separate VSCode window. VSCode itself
+ * deduplicates: if a window already has this folder open, that window is
+ * brought to front instead of creating a new one (forceNewWindow only
+ * applies when the folder is not open anywhere yet).
+ */
+async function openSolverWindow(sourceFile: string): Promise<void> {
+    const dir = path.dirname(sourceFile);
+    await vscode.commands.executeCommand(
+        'vscode.openFolder',
+        folderUriForCurrentHost(dir),
+        { forceNewWindow: true }
+    );
+}
+
 export async function openSolverSource(caseDir: string): Promise<void> {
     const app = readApplication(caseDir);
 
@@ -118,12 +167,7 @@ export async function openSolverSource(caseDir: string): Promise<void> {
             );
             return;
         }
-        const doc = await vscode.workspace.openTextDocument(file);
-        await vscode.window.showTextDocument(doc, { preview: false });
-        vscode.window.setStatusBarMessage(
-            `Solver source: ${path.dirname(file)}`,
-            8000
-        );
+        await openSolverWindow(file);
         return;
     }
     if (!app) {
@@ -160,12 +204,5 @@ export async function openSolverSource(caseDir: string): Promise<void> {
         );
         return;
     }
-    const doc = await vscode.workspace.openTextDocument(file);
-    await vscode.window.showTextDocument(doc, { preview: false });
-    // Open the solver directory in the explorer sidebar is intrusive;
-    // instead surface the path so the user can explore siblings (createFields.H etc).
-    vscode.window.setStatusBarMessage(
-        `Solver source: ${path.dirname(file)}`,
-        8000
-    );
+    await openSolverWindow(file);
 }

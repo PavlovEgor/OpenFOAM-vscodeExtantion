@@ -89,9 +89,15 @@ validates the file and offers completions.
 ### Jump to solver source
 
 **OpenFOAM: Open Solver Source Code** reads the `application` entry from
-`system/controlDict` and opens `<solver>.C` from the OpenFOAM installation
+`system/controlDict`, locates the solver sources in the OpenFOAM installation
 (searched under `$WM_PROJECT_DIR/applications`; the installation path can be
-overridden with the `openfoam.projectDir` setting).
+overridden with the `openfoam.projectDir` setting) and opens the solver's
+directory **in a separate VSCode window**. If a window with that folder is
+already open, it is brought to front instead of opening a duplicate.
+
+Remote sessions (Remote-SSH, WSL, dev containers) are supported: the new
+window opens the folder on the same host the case lives on, not on the local
+machine.
 
 If the case uses a **custom solver** (or the automatic search picks the wrong
 one), set `solverPath` in `openfoam-case.json` — it takes priority over the

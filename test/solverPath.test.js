@@ -19,10 +19,22 @@ require.cache['vscode'] = {
     exports: {
         workspace: { getConfiguration: () => ({ get: () => '' }) },
         window: {},
+        env: {},
+        Uri: {
+            file: (p) => ({ scheme: 'file', authority: '', path: p }),
+            from: (o) => ({
+                scheme: o.scheme,
+                authority: o.authority ?? '',
+                path: o.path,
+            }),
+        },
     },
 };
 
-const { resolveExplicitSolverPath } = require('../out/solverSource');
+const {
+    resolveExplicitSolverPath,
+    folderUriForCurrentHost,
+} = require('../out/solverSource');
 
 // Under the home dir so the tilde-expansion case (6) is actually exercised.
 const tmp = fs.mkdtempSync(path.join(os.homedir(), '.solverpath-test-'));
@@ -73,4 +85,24 @@ if (!rel.startsWith('..')) {
 }
 
 fs.rmSync(tmp, { recursive: true, force: true });
+
+// 7. Local session -> plain file: URI.
+{
+    const uri = folderUriForCurrentHost('/opt/solvers/myFoam', undefined);
+    assert.strictEqual(uri.scheme, 'file');
+    assert.strictEqual(uri.path, '/opt/solvers/myFoam');
+}
+
+// 8. Remote session (SSH/WSL/container) -> vscode-remote URI keeping the
+// authority, so the new window opens the folder on the same host.
+{
+    const uri = folderUriForCurrentHost(
+        '/opt/solvers/myFoam',
+        'ssh-remote+cluster.example.org'
+    );
+    assert.strictEqual(uri.scheme, 'vscode-remote');
+    assert.strictEqual(uri.authority, 'ssh-remote+cluster.example.org');
+    assert.strictEqual(uri.path, '/opt/solvers/myFoam');
+}
+
 console.log('All solverPath tests passed.');
