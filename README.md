@@ -1,58 +1,61 @@
 # OpenFOAM Case Tools
 
-Расширение VSCode для удобной работы с кейсами OpenFOAM: запуск и очистка по
-кнопке, монитор сходимости с графиками невязок, подсветка словарей, переход к
-исходникам решателя и параметрические исследования.
+A VSCode extension for comfortable work with OpenFOAM cases: one-click run and
+clean, a live convergence monitor with residual plots, dictionary syntax
+highlighting, jump-to-solver-source, and parametric studies.
 
-## Возможности
+## Features
 
-### Статус-бар
+### Status bar
 
-Когда в workspace найден кейс (папка с `system/controlDict`), в статус-баре
-появляются кнопки:
+When an OpenFOAM case (a folder containing `system/controlDict`) is found in
+the workspace, buttons appear in the status bar:
 
-| Кнопка | Действие |
+| Button | Action |
 |---|---|
-| `🧪 <имя кейса>` | выбор активного кейса (если их несколько) |
-| `▶ Run` | запуск кейса |
-| `⌫ Clean` | очистка кейса |
-| `📈 Residuals` | монитор сходимости |
-| `📄 Solver` | открыть исходный код решателя из `controlDict` |
+| `🧪 <case name>` | pick the active case (when there are several) |
+| `▶ Run` | run the case |
+| `⌫ Clean` | clean the case |
+| `📈 Residuals` | open the convergence monitor |
+| `📄 Solver` | open the solver source code |
 
-### Запуск и очистка
+### Run and clean
 
-Логика выбора скрипта (одинакова для Run и Clean):
+Script resolution (identical for Run and Clean):
 
-1. скрипт, указанный в `openfoam-case.json` (`runScript` / `cleanScript`);
-2. стандартный `Allrun` / `Allclean`, если есть в кейсе;
-3. единственный исполняемый файл в корне кейса;
-4. несколько исполняемых файлов — список на выбор (выбор запоминается);
-5. ничего нет — генерируется скрытый `.Allrun` / `.Allclean` из шаблона
-   (шаблоны редактируются в настройках `openfoam.defaultAllrun` /
-   `openfoam.defaultAllclean`).
+1. the script set in `openfoam-case.json` (`runScript` / `cleanScript`);
+2. the conventional `Allrun` / `Allclean`, if present in the case;
+3. the only executable file in the case root;
+4. several executables — a quick-pick list (the choice is remembered);
+5. nothing at all — a hidden `.Allrun` / `.Allclean` is generated from a
+   template (editable via the `openfoam.defaultAllrun` /
+   `openfoam.defaultAllclean` settings).
 
-Скрипт запускается в терминале VSCode с рабочей директорией кейса.
-Остановка — команда **OpenFOAM: Stop Run** (посылает Ctrl-C).
+The script runs in a VSCode terminal whose working directory is the case.
+Interrupt it with **OpenFOAM: Stop Run** (sends Ctrl-C).
 
-### Монитор сходимости
+### Convergence monitor
 
-Команда/кнопка **OpenFOAM: Open Convergence Monitor** открывает панель с двумя
-областями: слева график начальных невязок (лог-шкала) по всем полям
-(Ux, Uy, Uz, p, k, epsilon, …), справа — текстовая сводка: текущее Time, число
-шагов, ExecutionTime/ClockTime, ошибки неразрывности, последние невязки.
+**OpenFOAM: Open Convergence Monitor** opens a panel split into two panes:
+the left one plots initial residuals (log scale) for every field
+(Ux, Uy, Uz, p, k, epsilon, …); the right one shows a textual summary —
+current Time, step count, ExecutionTime/ClockTime, continuity errors and the
+last residual of each field.
 
-- Лог читается **только пока панель открыта и видима** — ресурсы не тратятся зря.
-- По умолчанию отслеживается самый свежий `log.*`; можно выбрать файл из списка
-  или зафиксировать в конфиге (`logFile`).
-- Клик по легенде или галочка в текстовой панели скрывает/показывает серию;
-  наведение — значения в точке.
-- Если в `system/fvSolution` задан `residualControl` (SIMPLE-форма `p 1e-2;`
-  или PIMPLE-форма с `tolerance`), критерии рисуются пунктиром цветом
-  соответствующего поля (паттерн `U` покрывает `Ux/Uy/Uz`, regex-паттерны
-  вида `"(k|epsilon)"` поддерживаются). Отключаются глобальной галочкой
-  «Show on chart» или по-отдельности в блоке «residualControl criteria».
-  Если `residualControl` в кейсе нет — ничего не рисуется и блок скрыт.
-- Пользовательские выводы добавляются в `openfoam-case.json`:
+- The log is read **only while the panel is open and visible** — no resources
+  are wasted otherwise.
+- By default the newest `log.*` file is followed; pick a specific file from
+  the dropdown or pin one in the config (`logFile`).
+- A checkbox next to each field in the info pane (or a click on the legend)
+  hides/shows its series; hovering the chart shows values at the cursor.
+- If `system/fvSolution` defines `residualControl` (either the SIMPLE scalar
+  form `p 1e-2;` or the PIMPLE dictionary form with `tolerance`), each
+  criterion is drawn as a dashed line in the color of its field. The pattern
+  `U` covers `Ux/Uy/Uz`; quoted regex patterns like `"(k|epsilon)"` are
+  supported. Criteria can be switched off globally with the "Show on chart"
+  checkbox or individually in the "residualControl criteria" block. When the
+  case defines no `residualControl`, nothing is drawn and the block is hidden.
+- Custom values can be scraped from the log via `openfoam-case.json`:
 
 ```json
 {
@@ -66,34 +69,68 @@
 }
 ```
 
-`regex` — регулярное выражение с одной группой захвата; значение показывается
-в панели, а с `"plot": true` (если числовое) ещё и рисуется на графике.
+`regex` is a regular expression with one capture group; the value is shown in
+the info pane, and with `"plot": true` (when numeric) it is also plotted.
 
-### Конфиг кейса — `openfoam-case.json`
+### Case config — `openfoam-case.json`
 
-Создаётся командой **OpenFOAM: Edit Case Config** в корне кейса. Все пути —
-относительно кейса. Для файла подключена JSON-схема: VSCode подсказывает и
-валидирует поля.
+Created with **OpenFOAM: Edit Case Config** in the case root. All paths are
+relative to the case unless absolute. A JSON schema is attached, so VSCode
+validates the file and offers completions.
 
-### Параметрические исследования
+| Field | Meaning |
+|---|---|
+| `runScript` / `cleanScript` | scripts behind the Run / Clean buttons |
+| `logFile` | log file the monitor follows (default: newest `log.*`) |
+| `solverPath` | explicit solver source for the Solver button (see below) |
+| `monitors` | extra values scraped from the log |
+| `study` | parametric study definition |
 
-1. **OpenFOAM: Create Parametric Study Template** — создаёт `study.csv`,
-   `studyPost.sh` и секцию `study` в конфиге.
-2. Таблица параметров: CSV (первая строка — имена параметров, колонка `name`
-   задаёт имя кейса) или inline-массив в JSON.
-3. Способ адаптации кейса под строку параметров:
-   - `"mode": "substitute"` — в копии кейса все токены `@имяПараметра@`
-     заменяются значениями (напр. `endTime @endTime@;` в `controlDict`);
-   - `"mode": "script"` — в копии выполняется ваш скрипт; параметры доступны
-     как `PARAM_<имя>`, `PARAMS_JSON`, `CASE_DIR`, `CASE_NAME`, `CASE_INDEX`.
-4. **OpenFOAM: Run Parametric Study** — копии создаются в `studyCases/`,
-   считаются параллельно (`maxParallel`), прогресс в Output-канале
-   «OpenFOAM Study», отмена — из уведомления.
-5. Постобработка (опционально): `study.post.script` выполняется в готовом
-   кейсе; с `"deleteCase": true` кейс удаляется после успешной постобработки —
-   для больших серий, не помещающихся на диск.
+### Jump to solver source
 
-Пример секции:
+**OpenFOAM: Open Solver Source Code** reads the `application` entry from
+`system/controlDict` and opens `<solver>.C` from the OpenFOAM installation
+(searched under `$WM_PROJECT_DIR/applications`; the installation path can be
+overridden with the `openfoam.projectDir` setting).
+
+If the case uses a **custom solver** (or the automatic search picks the wrong
+one), set `solverPath` in `openfoam-case.json` — it takes priority over the
+automatic search:
+
+```json
+{
+    "solverPath": "~/solvers/myPisoFoam/myPisoFoam.C"
+}
+```
+
+`solverPath` may be:
+
+- a path to the `.C` file itself, or
+- a directory — then `<application>.C` is preferred, falling back to the
+  first `.C` file inside;
+- absolute or relative to the case directory.
+
+### Parametric studies
+
+1. **OpenFOAM: Create Parametric Study Template** creates `study.csv`,
+   `studyPost.sh` and a `study` section in the config.
+2. The parameter table is a CSV file (first row — parameter names; a `name`
+   column sets the case name) or an inline array of objects in the JSON.
+3. How a case copy is adapted to one parameter row:
+   - `"mode": "substitute"` — every `@paramName@` token in the copied case
+     files is replaced with the row value (e.g. `endTime @endTime@;` in
+     `controlDict`);
+   - `"mode": "script"` — your script runs inside the copy; parameters are
+     available as `PARAM_<name>`, `PARAMS_JSON`, `CASE_DIR`, `CASE_NAME`,
+     `CASE_INDEX` environment variables.
+4. **OpenFOAM: Run Parametric Study** creates the copies in `studyCases/`,
+   runs them concurrently (`maxParallel`), reports progress in the
+   "OpenFOAM Study" output channel and can be cancelled from the notification.
+5. Optional post-processing: `study.post.script` runs inside each finished
+   case; with `"deleteCase": true` the copy is removed after successful
+   post-processing — for large sweeps that do not fit on disk.
+
+Example:
 
 ```json
 {
@@ -107,27 +144,36 @@
 }
 ```
 
-### Подсветка и автодополнение
+### Highlighting and completion
 
-Файлы словарей OpenFOAM (`controlDict`, `fvSchemes`, файлы в `0/`, `system/`,
-`constant/` и т.д.) подсвечиваются: ключевые слова, типы граничных условий,
-схемы, решатели, размерности `[0 2 -2 0 0 0 0]`, макросы `$var` и директивы
-`#include`. Работает автодополнение по распространённым ключевым словам.
+OpenFOAM dictionaries (`controlDict`, `fvSchemes`, files under `0/`,
+`system/`, `constant/`, …) get syntax highlighting: keywords, boundary
+condition types, schemes, linear solvers, dimension sets `[0 2 -2 0 0 0 0]`,
+`$macros` and `#include` directives. Completion is offered for common
+keywords.
 
-### Переход к исходникам решателя
-
-**OpenFOAM: Open Solver Source Code** читает `application` из
-`system/controlDict` и открывает `<solver>.C` из установки OpenFOAM
-(ищется в `$WM_PROJECT_DIR/applications`, путь можно задать настройкой
-`openfoam.projectDir`).
-
-## Сборка и установка
+## Building and installing
 
 ```bash
 npm install
-npm run compile        # или npm run watch при разработке
-# запуск в отладке: F5 (Extension Development Host)
-# сборка пакета:
+npm run compile        # or npm run watch during development
+# debug: press F5 (Extension Development Host)
+# package:
 npx @vscode/vsce package --no-dependencies
-code --install-extension openfoam-case-tools-0.1.0.vsix
+code --install-extension openfoam-case-tools-<version>.vsix
+```
+
+After installing a new version of the extension, reload the VSCode window
+(**Developer: Reload Window**).
+
+## Tests
+
+Plain-node tests, no VSCode instance required:
+
+```bash
+node test/parser.test.js       # solver log parser
+node test/fvSolution.test.js   # residualControl extraction
+node test/solverPath.test.js   # explicit solverPath resolution
+node test/webview.test.js      # monitor webview smoke test (fake DOM)
+node test/study.test.js        # parametric study engine (stubbed vscode API)
 ```

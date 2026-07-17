@@ -15,6 +15,13 @@ export interface CaseConfig {
     logFile?: string;
     /** Extra values scraped from the log and shown/plotted in the monitor. */
     monitors?: CustomMonitor[];
+    /**
+     * Explicit solver source location for the "Open Solver Source" button:
+     * a .C file or a directory containing it. Absolute, or relative to the
+     * case. Overrides the automatic search in the OpenFOAM installation —
+     * useful for custom solvers living outside $WM_PROJECT_DIR.
+     */
+    solverPath?: string;
     study?: StudyConfig;
 }
 

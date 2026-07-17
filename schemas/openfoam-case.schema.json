@@ -15,6 +15,10 @@
             "type": "string",
             "description": "Log file the convergence monitor follows. Omit to auto-follow the newest log.* file."
         },
+        "solverPath": {
+            "type": "string",
+            "description": "Explicit solver source for the \"Open Solver Source\" button: a .C file or a directory containing it. Absolute, or relative to the case. Overrides the automatic search in the OpenFOAM installation — useful for custom solvers."
+        },
         "monitors": {
             "type": "array",
             "description": "Extra values scraped from the log with regular expressions.",

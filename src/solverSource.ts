@@ -1,7 +1,9 @@
 import * as vscode from 'vscode';
 import * as fs from 'fs';
+import * as os from 'os';
 import * as path from 'path';
 import { readApplication } from './caseManager';
+import { loadCaseConfig } from './config';
 
 /** Locate the OpenFOAM installation directory. */
 export function findProjectDir(): string | undefined {
@@ -62,8 +64,68 @@ function findSolverFile(roots: string[], app: string): string | undefined {
     return undefined;
 }
 
+/**
+ * Resolve an explicit `solverPath` from openfoam-case.json to a source file.
+ * Accepts a .C file or a directory; directories are searched for `<app>.C`,
+ * then for any solver-looking .C file.
+ */
+export function resolveExplicitSolverPath(
+    caseDir: string,
+    solverPath: string,
+    app: string | undefined
+): string | undefined {
+    if (solverPath === '~' || solverPath.startsWith('~/')) {
+        solverPath = path.join(os.homedir(), solverPath.slice(1));
+    }
+    const full = path.isAbsolute(solverPath)
+        ? solverPath
+        : path.resolve(caseDir, solverPath);
+    let stat: fs.Stats;
+    try {
+        stat = fs.statSync(full);
+    } catch {
+        return undefined;
+    }
+    if (stat.isFile()) {
+        return full;
+    }
+    if (stat.isDirectory()) {
+        if (app && fs.existsSync(path.join(full, `${app}.C`))) {
+            return path.join(full, `${app}.C`);
+        }
+        const candidates = fs
+            .readdirSync(full)
+            .filter((f) => f.endsWith('.C'))
+            .sort();
+        if (candidates.length > 0) {
+            return path.join(full, candidates[0]);
+        }
+    }
+    return undefined;
+}
+
 export async function openSolverSource(caseDir: string): Promise<void> {
     const app = readApplication(caseDir);
+
+    // An explicit solverPath in openfoam-case.json wins over the automatic
+    // search — the case may use a custom solver outside the installation.
+    const configured = loadCaseConfig(caseDir).solverPath;
+    if (configured) {
+        const file = resolveExplicitSolverPath(caseDir, configured, app);
+        if (!file) {
+            vscode.window.showWarningMessage(
+                `solverPath "${configured}" in openfoam-case.json does not point to a .C file or a directory containing one.`
+            );
+            return;
+        }
+        const doc = await vscode.workspace.openTextDocument(file);
+        await vscode.window.showTextDocument(doc, { preview: false });
+        vscode.window.setStatusBarMessage(
+            `Solver source: ${path.dirname(file)}`,
+            8000
+        );
+        return;
+    }
     if (!app) {
         vscode.window.showWarningMessage(
             'Could not read the "application" entry from system/controlDict.'
