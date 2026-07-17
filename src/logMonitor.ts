@@ -8,6 +8,7 @@ import {
     ParserState,
     ResidualPoint,
 } from './logParser';
+import { TimingAccumulator, TimingMarker, TimingStep } from './timing';
 
 export interface MonitorSnapshot {
     logFile: string | null;
@@ -25,6 +26,8 @@ export interface MonitorSnapshot {
 export interface MonitorUpdate {
     residuals: Record<string, ResidualPoint[]>;
     monitorSeries: Record<string, { time: number; value: number }[]>;
+    /** Finalized wall-clock timing of steps observed live. */
+    timingSteps: TimingStep[];
     snapshot: MonitorSnapshot;
     /** True when the file was reset (truncated/switched) — clear old data. */
     reset: boolean;
@@ -52,6 +55,10 @@ export class LogMonitor extends EventEmitter {
     private pendingReset = false;
     private reading = false;
     private readAgain = false;
+    private pendingTimingSteps: TimingStep[] = [];
+    private readonly timing: TimingAccumulator;
+    /** False while the pre-existing log content is being read in a burst. */
+    private caughtUp = false;
 
     /** Currently followed file (absolute) or null. */
     private logFile: string | null = null;
@@ -62,9 +69,12 @@ export class LogMonitor extends EventEmitter {
         private readonly caseDir: string,
         private customMonitors: CustomMonitor[],
         private readonly updateIntervalMs: number,
-        private readonly pinnedLogFile?: string
+        private readonly pinnedLogFile?: string,
+        private timingMarkers: TimingMarker[] = [],
+        timingMinStepMs = 100
     ) {
         super();
+        this.timing = new TimingAccumulator(timingMinStepMs);
         if (pinnedLogFile) {
             this.followNewest = false;
         }
@@ -124,6 +134,10 @@ export class LogMonitor extends EventEmitter {
         this.customMonitors = monitors;
     }
 
+    setTimingMarkers(markers: TimingMarker[]): void {
+        this.timingMarkers = markers;
+    }
+
     availableLogs(): string[] {
         try {
             return fs
@@ -178,6 +192,11 @@ export class LogMonitor extends EventEmitter {
             this.pendingResiduals.clear();
             this.pendingMonitorSeries.clear();
             this.pendingReset = true;
+            // The upcoming backlog read arrives in one burst — its line
+            // arrival times carry no information, so timing is suspended
+            // until the file is caught up with.
+            this.caughtUp = false;
+            this.timing.disable();
         }
         if (!file) {
             this.scheduleFlush();
@@ -234,11 +253,19 @@ export class LogMonitor extends EventEmitter {
                 encoding: 'utf8',
             });
             stream.on('data', (chunk) => {
+                const arrivedAt = Date.now();
                 const update = parseChunk(
                     this.state,
                     chunk as string,
-                    this.customMonitors
+                    this.customMonitors,
+                    this.timingMarkers
                 );
+                for (const ev of update.timingEvents) {
+                    const step = this.timing.push({ ...ev, ts: arrivedAt });
+                    if (step) {
+                        this.pendingTimingSteps.push(step);
+                    }
+                }
                 for (const [field, points] of update.residuals) {
                     if (!this.pendingResiduals.has(field)) {
                         this.pendingResiduals.set(field, []);
@@ -268,6 +295,13 @@ export class LogMonitor extends EventEmitter {
         if (this.readAgain) {
             this.readAgain = false;
             this.readNew();
+            return;
+        }
+        // Fully caught up with the file — line arrival times are meaningful
+        // from now on, so wall-clock timing may start.
+        if (!this.caughtUp) {
+            this.caughtUp = true;
+            this.timing.enable();
         }
     }
 
@@ -280,11 +314,13 @@ export class LogMonitor extends EventEmitter {
             const update: MonitorUpdate = {
                 residuals: Object.fromEntries(this.pendingResiduals),
                 monitorSeries: Object.fromEntries(this.pendingMonitorSeries),
+                timingSteps: [...this.pendingTimingSteps],
                 snapshot: this.snapshot(),
                 reset: this.pendingReset,
             };
             this.pendingResiduals.clear();
             this.pendingMonitorSeries.clear();
+            this.pendingTimingSteps = [];
             this.pendingReset = false;
             this.emit('update', update);
         }, this.updateIntervalMs);

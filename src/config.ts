@@ -1,6 +1,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import { CustomMonitor } from './logParser';
+import { TimingMarker } from './timing';
 
 /** Per-case settings, stored as `openfoam-case.json` in the case root. */
 export interface CaseConfig {
@@ -15,6 +16,12 @@ export interface CaseConfig {
     logFile?: string;
     /** Extra values scraped from the log and shown/plotted in the monitor. */
     monitors?: CustomMonitor[];
+    /**
+     * Extra log-line patterns tracked on the Timing tab in addition to the
+     * default "Solving for <field>" lines. A matching line marks the end of
+     * the named phase.
+     */
+    timingMarkers?: TimingMarker[];
     /**
      * Explicit solver source location for the "Open Solver Source" button:
      * a .C file or a directory containing it. Absolute, or relative to the

@@ -83,6 +83,30 @@ ExecutionTime = 853.84 s  ClockTime = 854 s
     assert.strictEqual(state.currentTime, 2e-5);
 }
 
+// 3b. Timing events: every solve line fires (p three times), plus
+// stepStart/exec events, plus custom timing markers.
+{
+    const state = createParserState();
+    const upd = parseChunk(state, SAMPLE, [], [
+        { name: 'yPlus', regex: 'patch \\S+ y\\+' },
+    ]);
+    const kinds = upd.timingEvents.map((e) => e.kind);
+    assert.strictEqual(kinds.filter((k) => k === 'stepStart').length, 2);
+    assert.strictEqual(kinds.filter((k) => k === 'exec').length, 2);
+    const markers = upd.timingEvents
+        .filter((e) => e.kind === 'marker')
+        .map((e) => e.name);
+    // First step: Ux Uy Uz p p p epsilon k + custom yPlus marker.
+    assert.deepStrictEqual(markers.slice(0, 9), [
+        'Ux', 'Uy', 'Uz', 'p', 'p', 'p', 'epsilon', 'k', 'yPlus',
+    ]);
+    const firstStart = upd.timingEvents[0];
+    assert.strictEqual(firstStart.kind, 'stepStart');
+    assert.strictEqual(firstStart.simTime, 921);
+    const exec = upd.timingEvents.find((e) => e.kind === 'exec');
+    assert.strictEqual(exec.execTime, 852.91);
+}
+
 // 4. "End" marks the run finished.
 {
     const state = createParserState();

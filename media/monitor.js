@@ -104,6 +104,157 @@
         vscode.postMessage({ type: 'selectLog', file: logSelect.value });
     });
 
+    // -------------------------------------------------- tabs & timing pane
+    // Built dynamically so the script works with any HTML shell version.
+    const layoutEl = document.getElementById('layout');
+    const tabBar = document.createElement('div');
+    tabBar.id = 'tab-bar';
+    const tabResiduals = document.createElement('button');
+    tabResiduals.className = 'tab-btn active';
+    tabResiduals.textContent = 'Residuals';
+    const tabTiming = document.createElement('button');
+    tabTiming.className = 'tab-btn';
+    tabTiming.textContent = 'Timing';
+    tabBar.append(tabResiduals, tabTiming);
+    document.body.appendChild(tabBar); // CSS `order:-1` puts it on top
+
+    const timingPane = document.createElement('div');
+    timingPane.id = 'timing-pane';
+    timingPane.hidden = true;
+
+    const timingHeader = document.createElement('div');
+    timingHeader.className = 'timing-header';
+    function makeChip(label, pale) {
+        const chip = document.createElement('span');
+        chip.className = 'legend-item';
+        const sw = document.createElement('span');
+        sw.className = 'legend-swatch' + (pale ? ' chip-pale' : '');
+        sw.style.background = 'var(--vscode-foreground)';
+        chip.append(sw, document.createTextNode(label));
+        return chip;
+    }
+    const timingSummary = document.createElement('span');
+    timingSummary.className = 'timing-summary';
+    timingSummary.textContent = 'No timed steps yet — measuring starts with the next live step';
+    const timingReset = document.createElement('button');
+    timingReset.className = 'timing-reset';
+    timingReset.textContent = 'Reset stats';
+    timingHeader.append(
+        makeChip('last step', false),
+        makeChip('average', true),
+        timingSummary,
+        timingReset
+    );
+
+    const timingCanvas = document.createElement('canvas');
+    timingCanvas.id = 'timing-chart';
+    const tctx = timingCanvas.getContext('2d');
+
+    const timingHint = document.createElement('p');
+    timingHint.className = 'hint';
+    timingHint.textContent =
+        'Share of wall-clock time per step, from log-line arrival times ' +
+        '(absolute durations calibrated with ExecutionTime). Only steps ' +
+        'observed live are measured. Add custom phases via "timingMarkers" ' +
+        'in openfoam-case.json: {"name": "radiation", "regex": "Radiation solver"}';
+
+    timingPane.append(timingHeader, timingCanvas, timingHint);
+    document.body.appendChild(timingPane);
+
+    function selectTab(which) {
+        const showTiming = which === 'timing';
+        tabTiming.className = 'tab-btn' + (showTiming ? ' active' : '');
+        tabResiduals.className = 'tab-btn' + (showTiming ? '' : ' active');
+        if (layoutEl) {
+            layoutEl.style.display = showTiming ? 'none' : 'flex';
+        }
+        timingPane.hidden = !showTiming;
+        if (showTiming) {
+            requestTimingDraw();
+        } else {
+            requestDraw();
+        }
+    }
+    tabResiduals.addEventListener('click', () => selectTab('residuals'));
+    tabTiming.addEventListener('click', () => selectTab('timing'));
+
+    /** Accumulated timing statistics — reset only on demand or panel close. */
+    const timing = {
+        order: [], // tracked names in first-seen order ('other' pinned last)
+        sums: new Map(), // name -> sum of shares over measured steps
+        last: null, // last measured TimingStep
+        steps: 0,
+        skipped: 0,
+        colors: new Map(), // names that are not residual series
+    };
+
+    timingReset.addEventListener('click', () => {
+        timing.order = [];
+        timing.sums.clear();
+        timing.last = null;
+        timing.steps = 0;
+        timing.skipped = 0;
+        updateTimingSummary();
+        requestTimingDraw();
+    });
+
+    function timingColor(name) {
+        if (name === 'other') {
+            return cssVar('--muted', '#898781');
+        }
+        const s = series.get(name);
+        if (s) {
+            return s.color; // same entity, same color as on the residual chart
+        }
+        if (!timing.colors.has(name)) {
+            timing.colors.set(name, seriesColor());
+        }
+        return timing.colors.get(name);
+    }
+
+    function ingestTimingSteps(steps) {
+        for (const st of steps) {
+            if (st.skipped) {
+                timing.skipped++;
+                continue;
+            }
+            timing.steps++;
+            timing.last = st;
+            const entries = Object.entries(st.shares || {});
+            entries.push(['other', st.other]);
+            for (const [name, share] of entries) {
+                if (name !== 'other' && !timing.order.includes(name)) {
+                    timing.order.push(name);
+                }
+                timing.sums.set(name, (timing.sums.get(name) || 0) + share);
+            }
+        }
+        updateTimingSummary();
+        if (!timingPane.hidden) {
+            requestTimingDraw();
+        }
+    }
+
+    function updateTimingSummary() {
+        const parts = [];
+        if (timing.steps > 0) {
+            parts.push(
+                timing.steps + ' step' + (timing.steps === 1 ? '' : 's') + ' measured'
+            );
+            const last = timing.last;
+            const dur =
+                last.execDeltaS !== null ? last.execDeltaS : last.rawMs / 1000;
+            parts.push('last ' + fmt(dur) + ' s');
+        }
+        if (timing.skipped > 0) {
+            parts.push(timing.skipped + ' skipped (too fast to time)');
+        }
+        timingSummary.textContent =
+            parts.length > 0
+                ? parts.join(' · ')
+                : 'No timed steps yet — measuring starts with the next live step';
+    }
+
     function rebuildLegend() {
         legendEl.textContent = '';
         for (const [name, s] of series) {
@@ -153,6 +304,9 @@
             for (const p of points) {
                 s.points.push({ t: p.time, v: p.value });
             }
+        }
+        if (u.timingSteps && u.timingSteps.length > 0) {
+            ingestTimingSteps(u.timingSteps);
         }
         updateInfo(u.snapshot);
         requestDraw();
@@ -571,6 +725,218 @@
             ? t.toExponential(1)
             : String(Math.round(t * 1e6) / 1e6);
     }
+
+    // ------------------------------------------------------- timing chart
+    let timingDrawQueued = false;
+    function requestTimingDraw() {
+        if (timingDrawQueued) return;
+        timingDrawQueued = true;
+        requestAnimationFrame(() => {
+            timingDrawQueued = false;
+            drawTiming();
+        });
+    }
+
+    let timingGeom = null; // group hit-boxes for the tooltip
+
+    function timingNames() {
+        const names = [...timing.order];
+        if (timing.sums.has('other')) {
+            names.push('other');
+        }
+        return names;
+    }
+
+    function drawTiming() {
+        const dpr = window.devicePixelRatio || 1;
+        const w = timingCanvas.clientWidth;
+        const h = timingCanvas.clientHeight;
+        if (w === 0 || h === 0) return;
+        if (timingCanvas.width !== w * dpr || timingCanvas.height !== h * dpr) {
+            timingCanvas.width = w * dpr;
+            timingCanvas.height = h * dpr;
+        }
+        tctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        tctx.clearRect(0, 0, w, h);
+
+        const muted = cssVar('--muted', '#898781');
+        tctx.font =
+            '11px ' + cssVar('--vscode-font-family', 'system-ui, sans-serif');
+        const names = timingNames();
+        if (timing.steps === 0 || names.length === 0) {
+            tctx.fillStyle = muted;
+            tctx.textAlign = 'center';
+            tctx.fillText(
+                timing.skipped > 0
+                    ? 'Steps are too fast to time on this case'
+                    : 'Waiting for the next live time step…',
+                w / 2,
+                h / 2
+            );
+            timingGeom = null;
+            return;
+        }
+
+        const last = timing.last;
+        const lastOf = (name) =>
+            name === 'other' ? last.other : (last.shares[name] ?? 0);
+        const avgOf = (name) => (timing.sums.get(name) || 0) / timing.steps;
+
+        let maxShare = 0.0001;
+        for (const name of names) {
+            maxShare = Math.max(maxShare, lastOf(name), avgOf(name));
+        }
+        // Nice axis top: smallest of these that covers the data.
+        const yTop =
+            [0.1, 0.25, 0.5, 0.75, 1].find((v) => v >= maxShare) ?? 1;
+
+        const MARGIN_T = { left: 46, right: 10, top: 8, bottom: 24 };
+        const px = MARGIN_T.left,
+            pw = w - MARGIN_T.left - MARGIN_T.right,
+            py = MARGIN_T.top,
+            ph = h - MARGIN_T.top - MARGIN_T.bottom;
+        const Y = (v) => py + (1 - v / yTop) * ph;
+
+        // Horizontal gridlines with % labels.
+        tctx.strokeStyle = cssVar('--grid', '#e1e0d9');
+        tctx.lineWidth = 1;
+        tctx.fillStyle = muted;
+        tctx.textAlign = 'right';
+        tctx.textBaseline = 'middle';
+        for (let i = 0; i <= 4; i++) {
+            const v = (yTop / 4) * i;
+            const y = Y(v);
+            tctx.beginPath();
+            tctx.moveTo(px, y);
+            tctx.lineTo(px + pw, y);
+            tctx.stroke();
+            tctx.fillText(Math.round(v * 100) + '%', px - 6, y);
+        }
+
+        // Baseline.
+        tctx.strokeStyle = cssVar('--axis', '#c3c2b7');
+        tctx.beginPath();
+        tctx.moveTo(px, py + ph);
+        tctx.lineTo(px + pw, py + ph);
+        tctx.stroke();
+
+        const gw = pw / names.length;
+        const barW = Math.max(6, Math.min(34, gw * 0.3));
+        timingGeom = { groups: [], px, pw };
+
+        const bar = (x, share, color, pale) => {
+            const y = Y(share);
+            const bh = py + ph - y;
+            if (bh <= 0) return;
+            tctx.fillStyle = color;
+            tctx.globalAlpha = pale ? 0.45 : 1;
+            tctx.beginPath();
+            if (tctx.roundRect) {
+                // Rounded only at the data end; anchored flat to the baseline.
+                tctx.roundRect(x, y, barW, bh, [3, 3, 0, 0]);
+            } else {
+                tctx.rect(x, y, barW, bh);
+            }
+            tctx.fill();
+            tctx.globalAlpha = 1;
+        };
+
+        tctx.textAlign = 'center';
+        tctx.textBaseline = 'top';
+        names.forEach((name, i) => {
+            const cx = px + gw * i + gw / 2;
+            const color = timingColor(name);
+            bar(cx - barW - 1, lastOf(name), color, false);
+            bar(cx + 1, avgOf(name), color, true);
+
+            let label = name;
+            const fits = (t) => {
+                const m = tctx.measureText && tctx.measureText(t);
+                const width = m && m.width ? m.width : t.length * 6;
+                return width <= gw - 6;
+            };
+            while (label.length > 2 && !fits(label + '…')) {
+                label = label.slice(0, -1);
+            }
+            tctx.fillStyle = muted;
+            tctx.fillText(
+                label === name ? name : label + '…',
+                cx,
+                py + ph + 5
+            );
+            timingGeom.groups.push({
+                x0: px + gw * i,
+                x1: px + gw * (i + 1),
+                name,
+            });
+        });
+    }
+
+    function pct(v) {
+        const p = v * 100;
+        return (p < 10 ? p.toFixed(1) : Math.round(p)) + '%';
+    }
+
+    timingCanvas.addEventListener('mousemove', (e) => {
+        if (!timingGeom || !timing.last) {
+            tooltip.style.display = 'none';
+            return;
+        }
+        const rect = timingCanvas.getBoundingClientRect();
+        const mx = e.clientX - rect.left;
+        const group = timingGeom.groups.find((g) => mx >= g.x0 && mx < g.x1);
+        if (!group) {
+            tooltip.style.display = 'none';
+            return;
+        }
+        const name = group.name;
+        const last = timing.last;
+        const lastShare =
+            name === 'other' ? last.other : (last.shares[name] ?? 0);
+        const avgShare = (timing.sums.get(name) || 0) / timing.steps;
+        tooltip.textContent = '';
+        const head = document.createElement('div');
+        head.className = 't-time';
+        head.textContent = name;
+        tooltip.appendChild(head);
+        const rows = [
+            ['last step', pct(lastShare)],
+            ['average', pct(avgShare)],
+        ];
+        const durS = last.execDeltaS !== null ? last.execDeltaS : last.rawMs / 1000;
+        rows.push(['last time', fmt(lastShare * durS) + ' s']);
+        for (const [label, value] of rows) {
+            const row = document.createElement('div');
+            row.className = 't-row';
+            const sw = document.createElement('span');
+            sw.className = 'legend-swatch';
+            sw.style.background = timingColor(name);
+            const nm = document.createElement('span');
+            nm.textContent = label;
+            const val = document.createElement('span');
+            val.className = 't-val';
+            val.textContent = value;
+            row.append(sw, nm, val);
+            tooltip.appendChild(row);
+        }
+        tooltip.style.display = 'block';
+        const tw = tooltip.offsetWidth;
+        const x =
+            e.clientX + 14 + tw > window.innerWidth
+                ? e.clientX - tw - 10
+                : e.clientX + 14;
+        tooltip.style.left = x + 'px';
+        tooltip.style.top =
+            Math.min(
+                e.clientY + 12,
+                window.innerHeight - tooltip.offsetHeight - 8
+            ) + 'px';
+    });
+    timingCanvas.addEventListener('mouseleave', () => {
+        tooltip.style.display = 'none';
+    });
+
+    new ResizeObserver(requestTimingDraw).observe(timingCanvas);
 
     // -------------------------------------------------------------- tooltip
     canvas.addEventListener('mousemove', (e) => {

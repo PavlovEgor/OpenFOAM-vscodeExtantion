@@ -32,7 +32,7 @@ export class MonitorPanel {
     ) {
         this.panel = vscode.window.createWebviewPanel(
             'openfoamMonitor',
-            `Residuals: ${path.basename(caseDir)}`,
+            `Monitor: ${path.basename(caseDir)}`,
             vscode.ViewColumn.Beside,
             {
                 enableScripts: true,
@@ -76,21 +76,24 @@ export class MonitorPanel {
             type: 'controls',
             controls: readResidualControls(this.caseDir),
         });
-        const interval = vscode.workspace
-            .getConfiguration('openfoam')
-            .get<number>('monitor.updateIntervalMs', 500);
+        const settings = vscode.workspace.getConfiguration('openfoam');
+        const interval = settings.get<number>('monitor.updateIntervalMs', 500);
+        const minStepMs = settings.get<number>('timing.minStepMs', 100);
         if (!this.monitor) {
             this.monitor = new LogMonitor(
                 this.caseDir,
                 config.monitors ?? [],
                 interval,
-                config.logFile
+                config.logFile,
+                config.timingMarkers ?? [],
+                minStepMs
             );
             this.monitor.on('update', (update) => {
                 this.panel.webview.postMessage({ type: 'update', update });
             });
         } else {
             this.monitor.setCustomMonitors(config.monitors ?? []);
+            this.monitor.setTimingMarkers(config.timingMarkers ?? []);
         }
         this.monitor.start();
     }

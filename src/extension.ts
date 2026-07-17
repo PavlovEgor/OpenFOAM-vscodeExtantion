@@ -18,7 +18,7 @@ export function activate(context: vscode.ExtensionContext): void {
     const sbCase = makeItem(100, 'openfoam.selectCase');
     const sbRun = makeItem(99, 'openfoam.runCase', '$(play) Run', 'Run OpenFOAM case');
     const sbClean = makeItem(98, 'openfoam.cleanCase', '$(clear-all) Clean', 'Clean OpenFOAM case');
-    const sbMonitor = makeItem(97, 'openfoam.openMonitor', '$(graph-line) Residuals', 'Open convergence monitor');
+    const sbMonitor = makeItem(97, 'openfoam.openMonitor', '$(graph-line) Info', 'Open case monitor: residuals & timing');
     const sbSolver = makeItem(96, 'openfoam.openSolverSource', '$(file-code) Solver', 'Open solver source code');
     const items = [sbCase, sbRun, sbClean, sbMonitor, sbSolver];
     context.subscriptions.push(...items);

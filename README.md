@@ -16,7 +16,7 @@ the workspace, buttons appear in the status bar:
 | `🧪 <case name>` | pick the active case (when there are several) |
 | `▶ Run` | run the case |
 | `⌫ Clean` | clean the case |
-| `📈 Residuals` | open the convergence monitor |
+| `📈 Info` | open the case monitor (Residuals & Timing tabs) |
 | `📄 Solver` | open the solver source code |
 
 ### Run and clean
@@ -34,9 +34,12 @@ Script resolution (identical for Run and Clean):
 The script runs in a VSCode terminal whose working directory is the case.
 Interrupt it with **OpenFOAM: Stop Run** (sends Ctrl-C).
 
-### Convergence monitor
+### Case monitor
 
-**OpenFOAM: Open Convergence Monitor** opens a panel split into two panes:
+**OpenFOAM: Open Case Monitor** opens a panel with two tabs: **Residuals**
+and **Timing**.
+
+The Residuals tab is split into two panes:
 the left one plots initial residuals (log scale) for every field
 (Ux, Uy, Uz, p, k, epsilon, …); the right one shows a textual summary —
 current Time, step count, ExecutionTime/ClockTime, continuity errors and the
@@ -72,6 +75,45 @@ last residual of each field.
 `regex` is a regular expression with one capture group; the value is shown in
 the info pane, and with `"plot": true` (when numeric) it is also plotted.
 
+### Timing tab — where does the step time go?
+
+The Timing tab shows a histogram of how the wall-clock time of a time step is
+distributed between solver phases — **without touching the case, the solver
+or its log output**. It works purely by timestamping the arrival of log
+lines: a `Solving for Ux, ...` line is printed right after Ux is solved, so
+the interval ending at that line is attributed to Ux.
+
+- Each tracked name gets a pair of bars: the solid one is the share of the
+  **last** measured step, the paler one of the same color is the **average**
+  over all steps measured since the panel was opened (closing the panel
+  resets the statistics; the Reset button does it manually).
+- The **other** column collects time not attributed to any tracked marker
+  (function objects, writing, everything between the last tracked line and
+  the next `Time = ...`).
+- Y axis is the fraction of the step; hovering a column shows last/average
+  shares and the absolute time of the last step. Absolute durations are
+  **calibrated against the solver's own `ExecutionTime` deltas**, so they do
+  not depend on the arrival-time clock.
+- Only steps observed **live** are measured — pre-existing log content
+  arrives in one burst and carries no timing information. While the panel is
+  hidden nothing is measured and no resources are spent.
+- Steps faster than `openfoam.timing.minStepMs` (default 100 ms) are skipped:
+  below that scale the line-arrival jitter dominates the signal. The header
+  shows how many steps were measured and how many skipped.
+
+By default only the `Solving for <field>` lines are tracked. Extra phases can
+be added in `openfoam-case.json` — a matching line marks the *end* of the
+named phase:
+
+```json
+{
+    "timingMarkers": [
+        { "name": "radiation", "regex": "Radiation solver" },
+        { "name": "write", "regex": "^Writing fields" }
+    ]
+}
+```
+
 ### Case config — `openfoam-case.json`
 
 Created with **OpenFOAM: Edit Case Config** in the case root. All paths are
@@ -84,6 +126,7 @@ validates the file and offers completions.
 | `logFile` | log file the monitor follows (default: newest `log.*`) |
 | `solverPath` | explicit solver source for the Solver button (see below) |
 | `monitors` | extra values scraped from the log |
+| `timingMarkers` | extra phases tracked on the Timing tab |
 | `study` | parametric study definition |
 
 ### Jump to solver source
@@ -179,6 +222,7 @@ Plain-node tests, no VSCode instance required:
 ```bash
 node test/parser.test.js       # solver log parser
 node test/fvSolution.test.js   # residualControl extraction
+node test/timing.test.js       # wall-clock phase timing accumulator
 node test/solverPath.test.js   # explicit solverPath resolution
 node test/webview.test.js      # monitor webview smoke test (fake DOM)
 node test/study.test.js        # parametric study engine (stubbed vscode API)

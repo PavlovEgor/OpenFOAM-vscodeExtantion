@@ -42,6 +42,24 @@
                 }
             }
         },
+        "timingMarkers": {
+            "type": "array",
+            "description": "Extra log-line patterns tracked on the Timing tab in addition to the default \"Solving for <field>\" lines. A matching line marks the end of the named phase.",
+            "items": {
+                "type": "object",
+                "required": ["name", "regex"],
+                "properties": {
+                    "name": {
+                        "type": "string",
+                        "description": "Column label on the timing histogram."
+                    },
+                    "regex": {
+                        "type": "string",
+                        "description": "Regular expression; a matching log line marks the end of this phase."
+                    }
+                }
+            }
+        },
         "study": {
             "type": "object",
             "description": "Parametric study definition.",

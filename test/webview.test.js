@@ -109,6 +109,10 @@ function boot(withCriteriaIds) {
         body: makeElement('BODY'),
         documentElement: makeElement('HTML'),
     };
+    documentStub.body.insertBefore = function (el) {
+        this.children.push(el);
+        return el;
+    };
     const sandbox = {
         document: documentStub,
         window: {
@@ -150,6 +154,7 @@ function boot(withCriteriaIds) {
         posted,
         send: (data) => messageListeners[0]({ data }),
         infoPane: ids['info-pane'],
+        bodyEl: documentStub.body,
     };
 }
 
@@ -237,6 +242,63 @@ function makeUpdate() {
     assert.strictEqual(dynBlock.hidden, false);
     const dynList = dynBlock.children[dynBlock.children.length - 1];
     assert.strictEqual(dynList.children.length, 3);
+}
+
+// ------------- scenario 3: timing tab — tabs built dynamically, timing
+// steps accumulated, summary text updated, reset works.
+{
+    const dom = boot(true);
+    const tabBar = dom.bodyEl.children.find((c) => c.id === 'tab-bar');
+    const timingPane = dom.bodyEl.children.find((c) => c.id === 'timing-pane');
+    assert.ok(tabBar, 'tab bar built dynamically');
+    assert.ok(timingPane, 'timing pane built dynamically');
+    assert.strictEqual(timingPane.hidden, true);
+
+    // Switch to the Timing tab.
+    const tabButtons = tabBar.children;
+    assert.strictEqual(tabButtons.length, 2);
+    tabButtons[1].dispatch('click');
+    assert.strictEqual(timingPane.hidden, false);
+
+    // Feed one measured step, one skipped.
+    const upd = makeUpdate();
+    upd.update.timingSteps = [
+        {
+            simTime: 5,
+            shares: { Ux: 0.2, Uy: 0.1, p: 0.46 },
+            other: 0.24,
+            rawMs: 500,
+            execDeltaS: 0.5,
+            skipped: false,
+        },
+        {
+            simTime: 6,
+            shares: {},
+            other: 0,
+            rawMs: 40,
+            execDeltaS: 0.05,
+            skipped: true,
+        },
+    ];
+    dom.send(upd);
+
+    const header = timingPane.children[0];
+    const summary = header.children.find(
+        (c) => c.className === 'timing-summary'
+    );
+    assert.ok(summary.textContent.includes('1 step measured'));
+    assert.ok(summary.textContent.includes('1 skipped'));
+
+    // Reset button clears the stats.
+    const resetBtn = header.children.find(
+        (c) => c.className === 'timing-reset'
+    );
+    resetBtn.dispatch('click');
+    assert.ok(summary.textContent.includes('No timed steps yet'));
+
+    // Back to residuals — must not throw.
+    tabButtons[0].dispatch('click');
+    assert.strictEqual(timingPane.hidden, true);
 }
 
 console.log('All webview smoke tests passed.');

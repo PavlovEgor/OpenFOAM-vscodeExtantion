@@ -38,10 +38,98 @@ body {
     overflow: hidden;
 }
 
+body {
+    display: flex;
+    flex-direction: column;
+}
+
 #layout {
     display: flex;
-    height: 100vh;
+    flex: 1 1 auto;
+    min-height: 0;
     width: 100vw;
+}
+
+/* --- tab bar (built dynamically by monitor.js) --- */
+#tab-bar {
+    order: -1;
+    flex: 0 0 auto;
+    display: flex;
+    gap: 2px;
+    padding: 4px 10px 0;
+    border-bottom: 1px solid var(--vscode-panel-border, var(--grid));
+}
+
+.tab-btn {
+    appearance: none;
+    border: none;
+    background: transparent;
+    color: var(--muted);
+    font-family: inherit;
+    font-size: 12px;
+    padding: 4px 10px 6px;
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+}
+
+.tab-btn.active {
+    color: var(--vscode-foreground);
+    border-bottom-color: var(--vscode-focusBorder, #2a78d6);
+}
+
+/* --- timing tab --- */
+#timing-pane {
+    flex: 1 1 auto;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    padding: 10px 14px;
+    box-sizing: border-box;
+}
+
+#timing-pane[hidden] {
+    display: none;
+}
+
+.timing-header {
+    flex: 0 0 auto;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    flex-wrap: wrap;
+    font-size: 12px;
+    padding-bottom: 8px;
+}
+
+.timing-summary {
+    color: var(--muted);
+    font-variant-numeric: tabular-nums;
+}
+
+.chip-pale {
+    opacity: 0.45;
+}
+
+#timing-chart {
+    flex: 1 1 auto;
+    min-height: 120px;
+    width: 100%;
+}
+
+.timing-reset {
+    margin-left: auto;
+    background: var(--vscode-button-secondaryBackground, #3a3d41);
+    color: var(--vscode-button-secondaryForeground, #cccccc);
+    border: none;
+    border-radius: 3px;
+    padding: 3px 10px;
+    cursor: pointer;
+    font-family: inherit;
+    font-size: 12px;
+}
+
+.timing-reset:hover {
+    background: var(--vscode-button-secondaryHoverBackground, #45494e);
 }
 
 #chart-pane {

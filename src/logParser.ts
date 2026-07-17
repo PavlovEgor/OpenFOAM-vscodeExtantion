@@ -39,11 +39,26 @@ export interface ParserState {
     partialLine: string;
 }
 
+/** Timing event without a timestamp; the caller stamps arrival time. */
+export interface RawTimingEvent {
+    kind: 'stepStart' | 'exec' | 'marker';
+    name?: string;
+    simTime?: number;
+    execTime?: number;
+}
+
+export interface TimingMarkerDef {
+    name: string;
+    regex: string;
+}
+
 export interface ParseUpdate {
     /** New residual points, keyed by field name (Ux, p, k, ...). */
     residuals: Map<string, ResidualPoint[]>;
     /** New points for numeric custom monitors, keyed by monitor name. */
     monitorSeries: Map<string, { time: number; value: number }[]>;
+    /** Line-order events for wall-clock phase timing. */
+    timingEvents: RawTimingEvent[];
     stateChanged: boolean;
 }
 
@@ -72,13 +87,24 @@ export function createParserState(): ParserState {
 export function parseChunk(
     state: ParserState,
     chunk: string,
-    customMonitors: CustomMonitor[] = []
+    customMonitors: CustomMonitor[] = [],
+    timingMarkers: TimingMarkerDef[] = []
 ): ParseUpdate {
     const update: ParseUpdate = {
         residuals: new Map(),
         monitorSeries: new Map(),
+        timingEvents: [],
         stateChanged: false,
     };
+
+    const compiledTiming: { name: string; re: RegExp }[] = [];
+    for (const tm of timingMarkers) {
+        try {
+            compiledTiming.push({ name: tm.name, re: new RegExp(tm.regex) });
+        } catch {
+            // invalid user regex — skip
+        }
+    }
 
     const text = state.partialLine + chunk;
     const lines = text.split('\n');
@@ -93,6 +119,10 @@ export function parseChunk(
             state.currentTime = parseFloat(m[1]);
             state.stepCount++;
             state.seenThisStep.clear();
+            update.timingEvents.push({
+                kind: 'stepStart',
+                simTime: state.currentTime,
+            });
             update.stateChanged = true;
             continue;
         }
@@ -100,6 +130,9 @@ export function parseChunk(
         m = RE_SOLVE.exec(line);
         if (m && state.currentTime !== null) {
             const field = m[1];
+            // Every solve line is a timing marker (p may be solved several
+            // times per step — all of them count towards p's time).
+            update.timingEvents.push({ kind: 'marker', name: field });
             // Only the first solve of a field per step (e.g. p is solved
             // several times in SIMPLE) — standard convention for residual plots.
             if (!state.seenThisStep.has(field)) {
@@ -134,6 +167,10 @@ export function parseChunk(
         if (m) {
             state.executionTime = parseFloat(m[1]);
             state.clockTime = parseFloat(m[2]);
+            update.timingEvents.push({
+                kind: 'exec',
+                execTime: state.executionTime,
+            });
             update.stateChanged = true;
             continue;
         }
@@ -142,6 +179,12 @@ export function parseChunk(
             state.finished = true;
             update.stateChanged = true;
             continue;
+        }
+
+        for (const tm of compiledTiming) {
+            if (tm.re.test(line)) {
+                update.timingEvents.push({ kind: 'marker', name: tm.name });
+            }
         }
 
         for (const mon of customMonitors) {
