@@ -2,7 +2,7 @@
   "name": "openfoam-case-tools",
   "displayName": "OpenFOAM Case Tools",
   "description": "Run, clean, monitor convergence, edit dictionaries and drive parametric studies for OpenFOAM cases",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "publisher": "gomerpavyk",
   "license": "MIT",
   "engines": {

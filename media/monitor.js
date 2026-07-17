@@ -4,6 +4,24 @@
 (function () {
     'use strict';
 
+    // Surface any script error as a visible banner instead of a silently
+    // blank chart (e.g. when the extension was updated without a reload).
+    window.addEventListener('error', (e) => {
+        let banner = document.getElementById('of-error');
+        if (!banner) {
+            banner = document.createElement('div');
+            banner.id = 'of-error';
+            banner.style.cssText =
+                'position:fixed;top:0;left:0;right:0;z-index:99;' +
+                'padding:5px 10px;background:#d03b3b;color:#fff;font-size:12px;';
+            document.body.appendChild(banner);
+        }
+        banner.textContent =
+            'Monitor script error: ' +
+            (e.message || String(e)) +
+            ' — try reloading the window (Developer: Reload Window).';
+    });
+
     const vscode = acquireVsCodeApi();
 
     /** series name -> {points: [{t, v}], color, visible, isMonitor} */
@@ -257,9 +275,32 @@
     }
 
     // -------------------------------------------------------------- criteria
-    const criteriaBlock = document.getElementById('criteria-block');
-    const criteriaList = document.getElementById('criteria-list');
-    const showControlsCb = document.getElementById('show-controls');
+    // The criteria elements may be absent when an older HTML shell serves a
+    // newer script (extension updated, window not reloaded) — build them.
+    let criteriaBlock = document.getElementById('criteria-block');
+    let criteriaList = document.getElementById('criteria-list');
+    let showControlsCb = document.getElementById('show-controls');
+    if (!criteriaBlock || !criteriaList || !showControlsCb) {
+        criteriaBlock = document.createElement('div');
+        criteriaBlock.className = 'info-block';
+        criteriaBlock.hidden = true;
+        const heading = document.createElement('h3');
+        heading.textContent = 'residualControl criteria';
+        const row = document.createElement('div');
+        row.className = 'info-row';
+        const label = document.createElement('span');
+        label.textContent = 'Show on chart';
+        showControlsCb = document.createElement('input');
+        showControlsCb.type = 'checkbox';
+        showControlsCb.checked = true;
+        row.append(label, showControlsCb);
+        criteriaList = document.createElement('div');
+        criteriaBlock.append(heading, row, criteriaList);
+        const pane = document.getElementById('info-pane');
+        if (pane) {
+            pane.appendChild(criteriaBlock);
+        }
+    }
     showControlsCb.addEventListener('change', () => {
         showControls = showControlsCb.checked;
         requestDraw();
