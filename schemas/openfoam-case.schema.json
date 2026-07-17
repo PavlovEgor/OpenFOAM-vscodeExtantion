@@ -1,0 +1,107 @@
+{
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "title": "OpenFOAM case configuration",
+    "type": "object",
+    "properties": {
+        "runScript": {
+            "type": "string",
+            "description": "Script (relative to the case) executed by the Run button."
+        },
+        "cleanScript": {
+            "type": "string",
+            "description": "Script (relative to the case) executed by the Clean button."
+        },
+        "logFile": {
+            "type": "string",
+            "description": "Log file the convergence monitor follows. Omit to auto-follow the newest log.* file."
+        },
+        "monitors": {
+            "type": "array",
+            "description": "Extra values scraped from the log with regular expressions.",
+            "items": {
+                "type": "object",
+                "required": ["name", "regex"],
+                "properties": {
+                    "name": {
+                        "type": "string",
+                        "description": "Label shown in the monitor panel."
+                    },
+                    "regex": {
+                        "type": "string",
+                        "description": "Regular expression with one capture group — group 1 is the value."
+                    },
+                    "plot": {
+                        "type": "boolean",
+                        "description": "Also plot the (numeric) value as a chart series.",
+                        "default": false
+                    }
+                }
+            }
+        },
+        "study": {
+            "type": "object",
+            "description": "Parametric study definition.",
+            "required": ["table", "apply"],
+            "properties": {
+                "table": {
+                    "description": "CSV file path (first row = parameter names) or inline array of parameter objects.",
+                    "oneOf": [
+                        { "type": "string" },
+                        {
+                            "type": "array",
+                            "items": { "type": "object" }
+                        }
+                    ]
+                },
+                "apply": {
+                    "type": "object",
+                    "required": ["mode"],
+                    "properties": {
+                        "mode": {
+                            "type": "string",
+                            "enum": ["substitute", "script"],
+                            "description": "substitute: replace @name@ tokens in case files. script: run apply.script inside the copy (params exported as PARAM_<name>)."
+                        },
+                        "script": {
+                            "type": "string",
+                            "description": "Script executed inside the case copy when mode is \"script\"."
+                        },
+                        "files": {
+                            "type": "array",
+                            "items": { "type": "string" },
+                            "description": "Restrict substitution to these files (relative to the case)."
+                        }
+                    }
+                },
+                "run": {
+                    "type": "string",
+                    "description": "Command run inside each case copy. Defaults to the case run script."
+                },
+                "post": {
+                    "type": "object",
+                    "required": ["script"],
+                    "properties": {
+                        "script": {
+                            "type": "string",
+                            "description": "Post-processing script run inside the finished case copy."
+                        },
+                        "deleteCase": {
+                            "type": "boolean",
+                            "description": "Delete the case copy after successful post-processing (to save disk space).",
+                            "default": false
+                        }
+                    }
+                },
+                "casesDir": {
+                    "type": "string",
+                    "description": "Directory (relative to the case) where copies are created.",
+                    "default": "studyCases"
+                },
+                "maxParallel": {
+                    "type": "number",
+                    "description": "How many cases run concurrently."
+                }
+            }
+        }
+    }
+}

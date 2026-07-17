@@ -1,0 +1,137 @@
+{
+    "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+    "name": "OpenFOAM",
+    "scopeName": "source.openfoam",
+    "patterns": [
+        { "include": "#comments" },
+        { "include": "#strings" },
+        { "include": "#directives" },
+        { "include": "#macros" },
+        { "include": "#dimensions" },
+        { "include": "#numbers" },
+        { "include": "#foamfile" },
+        { "include": "#keywords" },
+        { "include": "#types" },
+        { "include": "#punctuation" }
+    ],
+    "repository": {
+        "comments": {
+            "patterns": [
+                {
+                    "name": "comment.block.openfoam",
+                    "begin": "/\\*",
+                    "end": "\\*/"
+                },
+                {
+                    "name": "comment.line.double-slash.openfoam",
+                    "begin": "//",
+                    "end": "$"
+                }
+            ]
+        },
+        "strings": {
+            "name": "string.quoted.double.openfoam",
+            "begin": "\"",
+            "end": "\"",
+            "patterns": [
+                { "name": "constant.character.escape.openfoam", "match": "\\\\." }
+            ]
+        },
+        "directives": {
+            "name": "keyword.control.directive.openfoam",
+            "match": "#(include|includeEtc|includeIfPresent|includeFunc|inputMode|remove|codeStream|calc|eval|if|ifeq|else|endif|neg|word|sinclude)\\b"
+        },
+        "macros": {
+            "patterns": [
+                {
+                    "name": "variable.other.macro.openfoam",
+                    "match": "\\$\\{?[A-Za-z0-9_.:/!]+\\}?"
+                }
+            ]
+        },
+        "dimensions": {
+            "name": "constant.other.dimensions.openfoam",
+            "match": "\\[\\s*(-?\\d+\\s+){2,6}-?\\d+\\s*\\]"
+        },
+        "numbers": {
+            "name": "constant.numeric.openfoam",
+            "match": "(?<![\\w.])-?(\\d+\\.?\\d*|\\.\\d+)([eE][+-]?\\d+)?(?![\\w.])"
+        },
+        "foamfile": {
+            "patterns": [
+                {
+                    "name": "storage.type.foamfile.openfoam",
+                    "match": "\\b(FoamFile)\\b"
+                },
+                {
+                    "name": "keyword.other.foamfile.openfoam",
+                    "match": "^\\s*(version|format|class|object|location|arch|note)\\b"
+                }
+            ]
+        },
+        "keywords": {
+            "patterns": [
+                {
+                    "name": "keyword.other.control.openfoam",
+                    "match": "^\\s*(application|startFrom|startTime|stopAt|endTime|deltaT|writeControl|writeInterval|purgeWrite|writeFormat|writePrecision|writeCompression|timeFormat|timePrecision|runTimeModifiable|adjustTimeStep|maxCo|maxAlphaCo|maxDeltaT|functions|libs)\\b"
+                },
+                {
+                    "name": "keyword.other.schemes.openfoam",
+                    "match": "^\\s*(ddtSchemes|gradSchemes|divSchemes|laplacianSchemes|interpolationSchemes|snGradSchemes|wallDist|fluxRequired|oversetInterpolation|default)\\b"
+                },
+                {
+                    "name": "keyword.other.solution.openfoam",
+                    "match": "^\\s*(solvers|solver|preconditioner|tolerance|relTol|smoother|nSweeps|nPreSweeps|nPostSweeps|cacheAgglomeration|nCellsInCoarsestLevel|agglomerator|mergeLevels|minIter|maxIter|SIMPLE|PISO|PIMPLE|potentialFlow|nNonOrthogonalCorrectors|nCorrectors|nOuterCorrectors|momentumPredictor|consistent|residualControl|relaxationFactors|fields|equations|pRefCell|pRefValue|pRefPoint)\\b"
+                },
+                {
+                    "name": "keyword.other.field.openfoam",
+                    "match": "^\\s*(dimensions|internalField|boundaryField|referenceLevel|type|value|inletValue|outletValue|freestreamValue|refValue|refGradient|valueFraction|gradient)\\b"
+                },
+                {
+                    "name": "keyword.other.mesh.openfoam",
+                    "match": "^\\s*(convertToMeters|scale|vertices|blocks|edges|boundary|faces|neighbourPatch|mergePatchPairs|castellatedMesh|snap|addLayers|geometry|castellatedMeshControls|snapControls|addLayersControls|meshQualityControls|refinementSurfaces|refinementRegions|locationInMesh|numberOfSubdomains|method)\\b"
+                },
+                {
+                    "name": "keyword.other.properties.openfoam",
+                    "match": "^\\s*(transportModel|simulationType|RASModel|LESModel|turbulence|printCoeffs|nu|rho|mu|Pr|Prt|Cp|Cv|thermoType|mixture|equationOfState|specie|energy|thermodynamics|transport)\\b"
+                }
+            ]
+        },
+        "types": {
+            "patterns": [
+                {
+                    "name": "support.type.boundary.openfoam",
+                    "match": "\\b(fixedValue|zeroGradient|noSlip|calculated|inletOutlet|outletInlet|slip|empty|symmetry|symmetryPlane|cyclic|cyclicAMI|cyclicACMI|wedge|processor|patch|wall|mappedWall|overset|totalPressure|prghPressure|fixedFluxPressure|pressureInletOutletVelocity|pressureInletVelocity|flowRateInletVelocity|surfaceNormalFixedValue|fixedGradient|mixed|directionMixed|uniformFixedValue|kqRWallFunction|epsilonWallFunction|omegaWallFunction|nutkWallFunction|nutUWallFunction|nutkRoughWallFunction|nutUSpaldingWallFunction|alphatWallFunction|turbulentIntensityKineticEnergyInlet|turbulentMixingLengthDissipationRateInlet|turbulentMixingLengthFrequencyInlet|freestream|freestreamPressure|freestreamVelocity|movingWallVelocity|rotatingWallVelocity|waveTransmissive)\\b"
+                },
+                {
+                    "name": "support.function.solver.openfoam",
+                    "match": "\\b(GAMG|PCG|PBiCG|PBiCGStab|smoothSolver|diagonal|DIC|DILU|FDIC|GaussSeidel|symGaussSeidel|DICGaussSeidel|nonBlockingGaussSeidel|faceAreaPair)\\b"
+                },
+                {
+                    "name": "support.function.scheme.openfoam",
+                    "match": "\\b(steadyState|Euler|backward|CrankNicolson|localEuler|Gauss|linear|limitedLinear|linearUpwind|upwind|LUST|vanLeer|Minmod|QUICK|MUSCL|SuperBee|cubic|midPoint|cellLimited|cellMDLimited|faceLimited|faceMDLimited|leastSquares|pointCellsLeastSquares|corrected|limited|uncorrected|orthogonal|bounded|skewCorrected|meshWave|advectionDiffusion)\\b"
+                },
+                {
+                    "name": "support.type.model.openfoam",
+                    "match": "\\b(kEpsilon|kOmega|kOmegaSST|kOmegaSSTLM|realizableKE|RNGkEpsilon|LaunderSharmaKE|SpalartAllmaras|Smagorinsky|WALE|kEqn|dynamicKEqn|laminar|RAS|LES|Newtonian|CrossPowerLaw|BirdCarreau|powerLaw|HerschelBulkley|hePsiThermo|heRhoThermo|perfectGas|incompressiblePerfectGas|rhoConst|hConst|eConst|janaf|sutherland|const|polynomial|sensibleEnthalpy|sensibleInternalEnergy|pureMixture|multiComponentMixture)\\b"
+                },
+                {
+                    "name": "support.constant.misc.openfoam",
+                    "match": "\\b(uniform|nonuniform|List|ascii|binary|compressed|uncompressed|on|off|true|false|yes|no|none|dictionary|volScalarField|volVectorField|volSymmTensorField|volTensorField|surfaceScalarField|pointScalarField|polyBoundaryMesh|scalar|vector|tensor|timeStep|runTime|adjustableRunTime|clockTime|cpuTime|writeNow|noWriteNow|nextWrite|general|fixed|scientific|latestTime|firstTime|simple|hierarchical|scotch|metis|manual)\\b"
+                }
+            ]
+        },
+        "punctuation": {
+            "patterns": [
+                {
+                    "name": "punctuation.terminator.statement.openfoam",
+                    "match": ";"
+                },
+                {
+                    "name": "punctuation.section.block.openfoam",
+                    "match": "[{}()]"
+                }
+            ]
+        }
+    }
+}

@@ -1,0 +1,205 @@
+{
+  "name": "openfoam-case-tools",
+  "displayName": "OpenFOAM Case Tools",
+  "description": "Run, clean, monitor convergence, edit dictionaries and drive parametric studies for OpenFOAM cases",
+  "version": "0.1.0",
+  "publisher": "gomerpavyk",
+  "license": "MIT",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Other",
+    "Programming Languages",
+    "Visualization"
+  ],
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "languages": [
+      {
+        "id": "openfoam",
+        "aliases": [
+          "OpenFOAM",
+          "foam"
+        ],
+        "filenames": [
+          "controlDict",
+          "fvSchemes",
+          "fvSolution",
+          "fvOptions",
+          "blockMeshDict",
+          "snappyHexMeshDict",
+          "surfaceFeatureExtractDict",
+          "meshQualityDict",
+          "decomposeParDict",
+          "setFieldsDict",
+          "topoSetDict",
+          "createPatchDict",
+          "mapFieldsDict",
+          "sampleDict",
+          "transportProperties",
+          "turbulenceProperties",
+          "thermophysicalProperties",
+          "momentumTransport",
+          "physicalProperties",
+          "radiationProperties",
+          "regionProperties",
+          "dynamicMeshDict",
+          "changeDictionaryDict",
+          "extrudeMeshDict",
+          "createBafflesDict",
+          "refineMeshDict",
+          "boundary",
+          "faceZones",
+          "cellZones",
+          "pointZones",
+          "g",
+          "epsilon",
+          "omega",
+          "nut",
+          "nuTilda",
+          "alphat",
+          "U",
+          "p",
+          "p_rgh",
+          "T",
+          "k"
+        ],
+        "filenamePatterns": [
+          "**/0/*",
+          "**/0.orig/*",
+          "**/system/*",
+          "**/system/*/*",
+          "**/constant/*"
+        ],
+        "firstLine": "^/\\*-+\\*?-?\\s*C\\+\\+\\s*-?\\*?-+\\*.*",
+        "configuration": "./language/language-configuration.json"
+      }
+    ],
+    "grammars": [
+      {
+        "language": "openfoam",
+        "scopeName": "source.openfoam",
+        "path": "./syntaxes/openfoam.tmLanguage.json"
+      }
+    ],
+    "jsonValidation": [
+      {
+        "fileMatch": "openfoam-case.json",
+        "url": "./schemas/openfoam-case.schema.json"
+      }
+    ],
+    "commands": [
+      {
+        "command": "openfoam.selectCase",
+        "title": "OpenFOAM: Select Active Case"
+      },
+      {
+        "command": "openfoam.runCase",
+        "title": "OpenFOAM: Run Case",
+        "icon": "$(play)"
+      },
+      {
+        "command": "openfoam.stopRun",
+        "title": "OpenFOAM: Stop Run",
+        "icon": "$(debug-stop)"
+      },
+      {
+        "command": "openfoam.cleanCase",
+        "title": "OpenFOAM: Clean Case",
+        "icon": "$(clear-all)"
+      },
+      {
+        "command": "openfoam.chooseRunScript",
+        "title": "OpenFOAM: Choose Run Script"
+      },
+      {
+        "command": "openfoam.chooseCleanScript",
+        "title": "OpenFOAM: Choose Clean Script"
+      },
+      {
+        "command": "openfoam.openMonitor",
+        "title": "OpenFOAM: Open Convergence Monitor",
+        "icon": "$(graph-line)"
+      },
+      {
+        "command": "openfoam.openSolverSource",
+        "title": "OpenFOAM: Open Solver Source Code",
+        "icon": "$(file-code)"
+      },
+      {
+        "command": "openfoam.editCaseConfig",
+        "title": "OpenFOAM: Edit Case Config (openfoam-case.json)"
+      },
+      {
+        "command": "openfoam.study.init",
+        "title": "OpenFOAM: Create Parametric Study Template"
+      },
+      {
+        "command": "openfoam.study.run",
+        "title": "OpenFOAM: Run Parametric Study",
+        "icon": "$(run-all)"
+      }
+    ],
+    "menus": {
+      "explorer/context": [
+        {
+          "command": "openfoam.selectCase",
+          "when": "explorerResourceIsFolder",
+          "group": "openfoam"
+        }
+      ],
+      "commandPalette": [
+        {
+          "command": "openfoam.stopRun",
+          "when": "openfoam.hasCase"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "OpenFOAM Case Tools",
+      "properties": {
+        "openfoam.projectDir": {
+          "type": "string",
+          "default": "",
+          "markdownDescription": "Path to the OpenFOAM installation (`WM_PROJECT_DIR`). Leave empty to auto-detect from the environment or /usr/lib/openfoam."
+        },
+        "openfoam.defaultAllrun": {
+          "type": "string",
+          "editPresentation": "multilineText",
+          "default": "#!/bin/sh\ncd \"${0%/*}\" || exit                                # Run from this directory\n. ${WM_PROJECT_DIR:?}/bin/tools/RunFunctions        # Tutorial run functions\n#------------------------------------------------------------------------------\n\nrestore0Dir\n\nrunApplication blockMesh\n\nrunApplication $(getApplication)\n\n#------------------------------------------------------------------------------\n",
+          "description": "Template used to generate a hidden .Allrun when the case has no run script."
+        },
+        "openfoam.defaultAllclean": {
+          "type": "string",
+          "editPresentation": "multilineText",
+          "default": "#!/bin/sh\ncd \"${0%/*}\" || exit                                # Run from this directory\n. ${WM_PROJECT_DIR:?}/bin/tools/CleanFunctions      # Tutorial clean functions\n#------------------------------------------------------------------------------\n\ncleanCase0\n\n#------------------------------------------------------------------------------\n",
+          "description": "Template used to generate a hidden .Allclean when the case has no clean script."
+        },
+        "openfoam.monitor.updateIntervalMs": {
+          "type": "number",
+          "default": 500,
+          "description": "How often (ms) the convergence monitor pushes new data to the chart while the panel is open."
+        },
+        "openfoam.study.maxParallel": {
+          "type": "number",
+          "default": 2,
+          "description": "Default number of parametric-study cases run concurrently."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "package": "vsce package --no-dependencies"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.0",
+    "@types/vscode": "^1.85.0",
+    "typescript": "^5.4.0"
+  }
+}
