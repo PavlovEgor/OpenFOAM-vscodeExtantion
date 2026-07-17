@@ -91,6 +91,23 @@ body {
     height: 10px;
     border-radius: 3px;
     display: inline-block;
+    flex-shrink: 0;
+}
+
+/* Swatch for a residualControl criterion: dashed outline, no fill. */
+.legend-swatch.dashed {
+    background: transparent !important;
+    height: 0;
+    border-radius: 0;
+    border: none;
+    border-top: 2px dashed currentColor;
+    border-color: inherit;
+}
+
+.res-row input[type='checkbox'],
+.info-row input[type='checkbox'] {
+    margin: 0;
+    accent-color: var(--vscode-checkbox-selectBackground, #2a78d6);
 }
 
 #chart {

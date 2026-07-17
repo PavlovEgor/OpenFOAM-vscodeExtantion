@@ -2,6 +2,7 @@ import * as vscode from 'vscode';
 import * as path from 'path';
 import { LogMonitor } from './logMonitor';
 import { loadCaseConfig } from './config';
+import { readResidualControls } from './fvSolution';
 
 /**
  * The convergence monitor: a webview split into a residual chart pane and a
@@ -69,6 +70,12 @@ export class MonitorPanel {
 
     private startMonitor(): void {
         const config = loadCaseConfig(this.caseDir);
+        // residualControl criteria (if any) — re-read on every (re)start so
+        // edits to fvSolution are picked up when the panel regains focus.
+        this.panel.webview.postMessage({
+            type: 'controls',
+            controls: readResidualControls(this.caseDir),
+        });
         const interval = vscode.workspace
             .getConfiguration('openfoam')
             .get<number>('monitor.updateIntervalMs', 500);
@@ -137,6 +144,13 @@ export class MonitorPanel {
         <div class="info-block">
             <h3>Last initial residuals</h3>
             <div id="residual-list"></div>
+        </div>
+        <div class="info-block" id="criteria-block" hidden>
+            <h3>residualControl criteria</h3>
+            <div class="info-row"><span>Show on chart</span>
+                <input type="checkbox" id="show-controls" checked>
+            </div>
+            <div id="criteria-list"></div>
         </div>
         <div class="info-block" id="monitors-block" hidden>
             <h3>Custom monitors</h3>

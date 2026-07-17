@@ -10,6 +10,32 @@
     const series = new Map();
     let colorIndex = 0;
 
+    /** residualControl criteria: [{pattern, tolerance}] from fvSolution. */
+    let controls = [];
+    let showControls = true;
+    /** Field names whose individual criterion line is unchecked. */
+    const hiddenControls = new Set();
+    let lastSnap = null;
+
+    /** Match a residual field (Ux, p, k…) against residualControl patterns. */
+    function controlFor(field) {
+        for (const c of controls) {
+            if (c.pattern === field) return c;
+            // Vector components: pattern "U" covers Ux/Uy/Uz.
+            if (/[xyz]$/.test(field) && c.pattern === field.slice(0, -1)) {
+                return c;
+            }
+            try {
+                if (new RegExp('^(?:' + c.pattern + ')$').test(field)) {
+                    return c;
+                }
+            } catch (e) {
+                /* not a valid JS regex — ignore */
+            }
+        }
+        return null;
+    }
+
     const palette = [1, 2, 3, 4, 5, 6, 7, 8].map((i) =>
         getComputedStyle(document.documentElement).getPropertyValue(
             `--series-${i}`
@@ -73,6 +99,7 @@
             item.addEventListener('click', () => {
                 s.visible = !s.visible;
                 rebuildLegend();
+                if (lastSnap) updateInfo(lastSnap); // sync checkboxes
                 requestDraw();
             });
             legendEl.appendChild(item);
@@ -82,6 +109,12 @@
     // -------------------------------------------------------------- messages
     window.addEventListener('message', (event) => {
         const msg = event.data;
+        if (msg.type === 'controls') {
+            controls = msg.controls || [];
+            renderCriteria();
+            requestDraw();
+            return;
+        }
         if (msg.type !== 'update') {
             return;
         }
@@ -121,6 +154,7 @@
     }
 
     function updateInfo(snap) {
+        lastSnap = snap;
         // Log file dropdown.
         const current = logSelect.value;
         const options = ['auto', ...(snap.availableLogs || [])];
@@ -174,7 +208,7 @@
             snap.continuity ? fmt(snap.continuity.cumulative) : '—'
         );
 
-        // Last residual per field.
+        // Last residual per field, with a checkbox toggling the series.
         const resList = document.getElementById('residual-list');
         resList.textContent = '';
         for (const [name, s] of series) {
@@ -182,6 +216,15 @@
             const last = s.points[s.points.length - 1];
             const row = document.createElement('div');
             row.className = 'res-row';
+            const cb = document.createElement('input');
+            cb.type = 'checkbox';
+            cb.checked = s.visible;
+            cb.title = 'Show ' + name + ' on the chart';
+            cb.addEventListener('change', () => {
+                s.visible = cb.checked;
+                rebuildLegend();
+                requestDraw();
+            });
             const sw = document.createElement('span');
             sw.className = 'legend-swatch';
             sw.style.background = s.color;
@@ -190,9 +233,10 @@
             field.textContent = name;
             const val = document.createElement('b');
             val.textContent = fmt(last.v);
-            row.append(sw, field, val);
+            row.append(cb, sw, field, val);
             resList.appendChild(row);
         }
+        renderCriteria();
 
         // Custom monitors.
         const monBlock = document.getElementById('monitors-block');
@@ -209,6 +253,58 @@
             val.textContent = value;
             row.append(label, val);
             monList.appendChild(row);
+        }
+    }
+
+    // -------------------------------------------------------------- criteria
+    const criteriaBlock = document.getElementById('criteria-block');
+    const criteriaList = document.getElementById('criteria-list');
+    const showControlsCb = document.getElementById('show-controls');
+    showControlsCb.addEventListener('change', () => {
+        showControls = showControlsCb.checked;
+        requestDraw();
+    });
+
+    /** Criterion lines currently applicable: [{field, color, tolerance}]. */
+    function activeCriteria() {
+        const out = [];
+        for (const [name, s] of series) {
+            if (s.isMonitor) continue;
+            const c = controlFor(name);
+            if (c) {
+                out.push({ field: name, color: s.color, tolerance: c.tolerance, series: s });
+            }
+        }
+        return out;
+    }
+
+    function renderCriteria() {
+        const items = activeCriteria();
+        // Nothing to show unless the case actually defines residualControl.
+        criteriaBlock.hidden = items.length === 0;
+        criteriaList.textContent = '';
+        for (const item of items) {
+            const row = document.createElement('div');
+            row.className = 'res-row';
+            const cb = document.createElement('input');
+            cb.type = 'checkbox';
+            cb.checked = !hiddenControls.has(item.field);
+            cb.title = 'Show the ' + item.field + ' criterion line';
+            cb.addEventListener('change', () => {
+                if (cb.checked) hiddenControls.delete(item.field);
+                else hiddenControls.add(item.field);
+                requestDraw();
+            });
+            const sw = document.createElement('span');
+            sw.className = 'legend-swatch dashed';
+            sw.style.borderColor = item.color;
+            const field = document.createElement('span');
+            field.className = 'field';
+            field.textContent = item.field;
+            const val = document.createElement('b');
+            val.textContent = fmt(item.tolerance);
+            row.append(cb, sw, field, val);
+            criteriaList.appendChild(row);
         }
     }
 
@@ -269,6 +365,21 @@
                 if (p.t > tMax) tMax = p.t;
                 if (p.v > 0) {
                     const ly = Math.log10(p.v);
+                    if (ly < yMin) yMin = ly;
+                    if (ly > yMax) yMax = ly;
+                }
+            }
+        }
+        // Criterion lines participate in the vertical extent so they are
+        // always visible when enabled.
+        if (showControls) {
+            for (const c of activeCriteria()) {
+                if (
+                    c.series.visible &&
+                    !hiddenControls.has(c.field) &&
+                    c.tolerance > 0
+                ) {
+                    const ly = Math.log10(c.tolerance);
                     if (ly < yMin) yMin = ly;
                     if (ly > yMax) yMax = ly;
                 }
@@ -353,6 +464,30 @@
                 }
             }
             ctx.stroke();
+        }
+
+        // residualControl criteria: dashed horizontal line per field, same
+        // color as its series. Drawn only when the case defines them.
+        if (showControls) {
+            ctx.lineWidth = 1.5;
+            ctx.setLineDash([6, 4]);
+            for (const c of activeCriteria()) {
+                if (
+                    !c.series.visible ||
+                    hiddenControls.has(c.field) ||
+                    c.tolerance <= 0
+                ) {
+                    continue;
+                }
+                const y = Y(Math.log10(c.tolerance));
+                if (y < py || y > py + ph) continue;
+                ctx.strokeStyle = c.color;
+                ctx.beginPath();
+                ctx.moveTo(px, y);
+                ctx.lineTo(px + pw, y);
+                ctx.stroke();
+            }
+            ctx.setLineDash([]);
         }
 
         chartGeom = { tMin, tMax, X, Y, px, pw, py, ph };
